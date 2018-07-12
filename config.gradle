@@ -1,0 +1,12 @@
+ext {
+    //是否调试模式，调试模式下会座位app编译，非调试模式生成aar库
+    isDebugType = true
+    //Android定义
+    android = [
+            compileSdkVersion: 26,
+            targetSdkVersion : 26,
+            minSdkVersion    : 16,
+            buildToolsVersion: "26.0.2",
+            versionNumber:"1.0.1"
+    ]
+}

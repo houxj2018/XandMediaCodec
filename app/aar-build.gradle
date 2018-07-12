@@ -1,0 +1,22 @@
+//编译打包AAR库包
+task build_AAR(dependsOn: ['clean','assembleRelease'], type: Copy){
+    preBuild.mustRunAfter 'clean'
+    File buildFile = new File(project.buildDir, "outputs/aar/app-release.aar")
+    File outDir = new File(project.rootDir, "app/output")
+
+    from buildFile
+    into outDir
+
+    doFirst{
+        if(outDir.exists()){
+            outDir.deleteDir()
+        }
+    }
+
+    doLast {
+        File srcFile = new File(outDir, "app-release.aar")
+        File desFile = new File(outDir,"${project.group}-${android.defaultConfig.versionName}.aar")
+        boolean result =srcFile.renameTo(desFile)
+        println("rename result " + result)
+    }
+}

@@ -1,0 +1,51 @@
+if(rootProject.ext.isDebugType){
+    apply plugin: 'com.android.application'
+}else{
+    apply plugin: 'com.android.library'
+}
+apply from: "aar-build.gradle"
+
+def getVersionCode(String version){
+    return Integer.parseInt(version.replace('.',''))
+}
+
+android {
+    compileSdkVersion  rootProject.ext.android.compileSdkVersion
+    buildToolsVersion  rootProject.ext.android.buildToolsVersion
+    defaultConfig {
+        if (rootProject.ext.isDebugType){
+            applicationId "com.houxj.xandmediacodec"
+        }
+        minSdkVersion rootProject.ext.android.minSdkVersion
+        targetSdkVersion rootProject.ext.android.targetSdkVersion
+        versionCode getVersionCode(rootProject.ext.android.versionNumber)
+        versionName rootProject.ext.android.versionNumber
+
+        testInstrumentationRunner "android.support.test.runner.AndroidJUnitRunner"
+
+        if (rootProject.ext.isDebugType){
+            manifestPlaceholders = [TEST_ACT_CATEGORY: "android.intent.category.LAUNCHER" ]
+        }else{
+            resourcePrefix 'xandmc_'
+            manifestPlaceholders = [TEST_ACT_CATEGORY: "android.intent.category.DEFAULT" ]
+        }
+    }
+    buildTypes {
+        release {
+            minifyEnabled false
+            proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
+        }
+    }
+}
+
+dependencies {
+    implementation fileTree(dir: 'libs', include: ['*.jar'])
+    implementation 'com.android.support:appcompat-v7:26.1.0'
+    implementation 'com.android.support.constraint:constraint-layout:1.1.2'
+    testImplementation 'junit:junit:4.12'
+    androidTestImplementation 'com.android.support.test:runner:1.0.2'
+    androidTestImplementation 'com.android.support.test.espresso:espresso-core:3.0.2'
+    configurations.all {
+        resolutionStrategy.force 'com.android.support:support-annotations:26.1.0'
+    }
+}
