@@ -1,6 +1,6 @@
 ext {
     //是否调试模式，调试模式下会座位app编译，非调试模式生成aar库
-    isDebugType = true
+    isDebugType = false
     //Android定义
     android = [
             compileSdkVersion: 26,
