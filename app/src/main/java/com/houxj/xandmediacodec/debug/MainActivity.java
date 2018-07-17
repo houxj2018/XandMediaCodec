@@ -18,6 +18,8 @@ import java.io.IOException;
 
 public class MainActivity extends AppCompatActivity {
 
+    private XAudioPCMPlay mAudioPlay;
+    private XAudioDecode mAudioDecode;
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
@@ -37,12 +39,19 @@ public class MainActivity extends AppCompatActivity {
             JLogEx.d("T = %d", XAudioPCMPlay.getPcmTotalTime(file_path));
         }else if(R.id.but_play_pcm == id){
             playPCM();
+        }else if(R.id.but_stop == id){
+            stopDecode();
         }
     }
 
+    private void stopDecode(){
+        if(null != mAudioDecode){
+            mAudioDecode.stop();
+        }
+    }
     private void playPCM(){
         String file_path = Environment.getExternalStorageDirectory().getAbsolutePath();
-        file_path += File.separator + Environment.DIRECTORY_MUSIC + File.separator + "辛晓琪歌曲-m4a.pcm";
+        file_path += File.separator + Environment.DIRECTORY_MUSIC + File.separator + "大壮-我们不一样_mp3.pcm";
         XAudioPCMPlay.newInstance()
                 .setPCMPath(file_path)
                 .play();
@@ -51,7 +60,7 @@ public class MainActivity extends AppCompatActivity {
     private void writeFile(byte[] data){
         long timg = System.currentTimeMillis();
         String file_path = Environment.getExternalStorageDirectory().getAbsolutePath();
-        file_path += File.separator + Environment.DIRECTORY_MUSIC + File.separator + "电影-wmv.pcm";
+        file_path += File.separator + Environment.DIRECTORY_MUSIC + File.separator + "大壮-我们不一样_mp3.pcm";
         FileOutputStream outputStream = null;
         try {
             outputStream = new FileOutputStream(file_path,true);
@@ -78,20 +87,24 @@ public class MainActivity extends AppCompatActivity {
         String file_path = Environment.getExternalStorageDirectory().getAbsolutePath();
         //"几个你_薛之谦.aac";//大壮-我们不一样.mp3 //test2.wma(x) 辛晓琪歌曲.m4a test1.m4a  木叶旅途-轻音乐.wma(x)
         // 费玉清-相思比梦长.ape(x) 费玉清-热情的夏季.flac 费玉清-夏之旅.wav 电影.wmv
-        file_path += File.separator + Environment.DIRECTORY_MUSIC + File.separator + "电影.wmv";
+        file_path += File.separator + Environment.DIRECTORY_MUSIC + File.separator + "费玉清-夏之旅.wav";
         File file = new File(file_path);
         JLogEx.d("%s %s",file_path, file.exists());
-        XAudioDecode.newInstance()
+        mAudioPlay = XAudioPCMPlay.newInstance().play();
+        mAudioDecode = XAudioDecode.newInstance()
                 .setAudioPath(file_path)
+                .seekTo(30)//30秒开始解码
                 .setDecodeLiListener(new IXAudioDecodeCallBack() {
                     @Override
                     public void onDecode(byte[] pcm) {
-                        writeFile(pcm);
+//                        writeFile(pcm);
+                        mAudioPlay.write(pcm);
                     }
 
                     @Override
                     public void onComplete() {
                         JLogEx.d();
+                        mAudioPlay.stop();
                     }
 
                     @Override

@@ -31,13 +31,13 @@ public class XAudioPCMPlay implements AudioTrack.OnPlaybackPositionUpdateListene
 
     private void initAudioTrack(){
         int bufferSize = AudioTrack.getMinBufferSize(RATE_IN_HZ,
-                AudioFormat.CHANNEL_OUT_MONO,
+                AudioFormat.CHANNEL_OUT_STEREO,
                 AudioFormat.ENCODING_PCM_16BIT);
 
         JLogEx.d("bufferSize= %d", bufferSize);
         mAudioTrack = new AudioTrack(AudioManager.STREAM_MUSIC,
                 RATE_IN_HZ,
-                AudioFormat.CHANNEL_OUT_MONO,
+                AudioFormat.CHANNEL_OUT_STEREO,
                 AudioFormat.ENCODING_PCM_16BIT,
                 bufferSize, AudioTrack.MODE_STREAM);
         mAudioTrack.setPositionNotificationPeriod(RATE_IN_HZ);
@@ -67,6 +67,7 @@ public class XAudioPCMPlay implements AudioTrack.OnPlaybackPositionUpdateListene
         if(null != mAudioTrack){
             mAudioTrack.stop();
             mAudioTrack.release();
+            mAudioTrack= null;
         }
     }
 

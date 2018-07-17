@@ -6,6 +6,7 @@ import android.media.MediaCodecInfo;
 import android.media.MediaCodecList;
 import android.media.MediaExtractor;
 import android.media.MediaFormat;
+import android.media.MediaPlayer;
 import android.os.Build;
 
 import com.houxj.xandmediacodec.utils.JLogEx;
@@ -19,16 +20,23 @@ import java.nio.ByteBuffer;
  */
 
 public class XAudioDecode {
+    private static final int DECODE_STATE_INIT = 0; //初始化，未开始解码
+    private static final int DECODE_STATE_DECODEING = 1; //解码中
+    private static final int DECODE_STATE_COMPLETE = 2; //解码完成
+    private static final int DECODE_STATE_STOP = 0xFF; //用户停止解码
+
     private static final int KEY_SAMPLE_RATE = 48000;//采样率
     private IXAudioDecodeCallBack mDecodeListener = null;
     private String mDecodeFile = null;
+    private int mAudioTime = 0; //多媒体文件时长
     private MediaExtractor mMediaExtractor;
     private MediaCodec mMediaDecode;
+    private int mDecodeTime = -1;  //解码开始时间
 
     private ByteBuffer[] mDecodeInputBuffers;
     private ByteBuffer[] mDecodeOutputBuffers;
     private MediaCodec.BufferInfo mDecodeBufferInfo;
-    private int mDecodeRelust = 0;  // 0未开始解码；1 解码完成；小于0解码失败；
+    private int mDecodeRelust = DECODE_STATE_INIT;  // 0未开始解码；1 解码完成；小于0解码失败 2请求结束；
 
     //TODO 建立实例
     public static XAudioDecode newInstance(){
@@ -42,6 +50,7 @@ public class XAudioDecode {
     //TODO 设置解码文件
     public XAudioDecode setAudioPath(String file){
         mDecodeFile = file;
+        mAudioTime = getMediaFileTime(mDecodeFile);
         return this;
     }
 
@@ -51,10 +60,21 @@ public class XAudioDecode {
         return this;
     }
 
+    //TODO 设置开始解码的位置（时间 秒数）
+    public XAudioDecode seekTo(int timeSec){
+        mDecodeTime = timeSec * 1000 ; // 秒转毫秒（总长度得到的时候毫秒，所以转成毫秒）
+        return this;
+    }
+
     //TODO 开始异步解码处理
     public XAudioDecode startAsync(){
         new Thread(new DecodeRunnable()).start();
         return this;
+    }
+
+    //TODO 停止解码
+    public void stop(){
+        setDecodeState(DECODE_STATE_STOP);
     }
 
     //TODO 是否资源
@@ -71,25 +91,50 @@ public class XAudioDecode {
         mDecodeListener = null;
     }
 
+    //TODO 时长
+    public int getAudioTime(){
+        return mAudioTime;
+    }
+
     //TODO 解码线程
     private class DecodeRunnable implements Runnable{
 
         @Override
         public void run() {
+            JLogEx.d("Time Len = %d", mAudioTime);
+            if(mDecodeTime >= (mAudioTime)){//如果跳过的时间超过总时间，则从头开始
+                mDecodeTime = -1;
+            }
             if(initMediaDecodec()) {
                 long time = System.currentTimeMillis();
-                while (mDecodeRelust == 0) {
+                do {
                     decodeAudioToPCM();
-                }
+                }while (getDecodeState() == DECODE_STATE_DECODEING);
                 JLogEx.d("Decode Use Time %d Sec", (System.currentTimeMillis() - time)/1000);
-                if(mDecodeRelust == 1){
+                if(getDecodeState() == DECODE_STATE_COMPLETE
+                        || getDecodeState() == DECODE_STATE_STOP){
                     callBackComplete();
                 }else{
-                    callBackError(mDecodeRelust);
+                    callBackError(getDecodeState());
                 }
             }else{
                 callBackError(IXAudioDecodeCallBack.ERROR_ID_FILE_ERROR);
             }
+        }
+    }
+
+    //TODO 设置和获取状态
+    private int getDecodeState(){
+        int nRet = DECODE_STATE_INIT;
+        synchronized (this){
+            nRet = mDecodeRelust;
+        }
+        return nRet;
+    }
+
+    private void setDecodeState(int state){
+        synchronized (this){
+            mDecodeRelust = state;
         }
     }
 
@@ -102,8 +147,10 @@ public class XAudioDecode {
             if(null != mDecodeFile) {
                 mMediaExtractor = new MediaExtractor();//此类可分离视频文件的音轨和视频轨道
                 mMediaExtractor.setDataSource(mDecodeFile);//媒体文件的位置
-                JLogEx.d(mMediaExtractor.getTrackCount());
-                for (int i = 0; i < mMediaExtractor.getTrackCount(); i++){//查找音频轨道
+                int trackCount = mMediaExtractor.getTrackCount();
+
+                JLogEx.d("trackCount=%d mDecodeTime= %d", trackCount, mDecodeTime);
+                for (int i = 0; i < trackCount; i++){//查找音频轨道
                     MediaFormat format = mMediaExtractor.getTrackFormat(i);
                     String mime = format.getString(MediaFormat.KEY_MIME);
                     JLogEx.d(mime);
@@ -111,6 +158,7 @@ public class XAudioDecode {
                         mMediaExtractor.selectTrack(i);//选择此音频轨道
                         mMediaDecode = MediaCodec.createDecoderByType(mime);//创建Decode解码器
                         format.setInteger(MediaFormat.KEY_SAMPLE_RATE, KEY_SAMPLE_RATE);
+                        format.setInteger(MediaFormat.KEY_I_FRAME_INTERVAL,0);
                         JLogEx.d("%s", format.toString());
                         mMediaDecode.configure(format,null,null, 0);
                         break;
@@ -122,7 +170,13 @@ public class XAudioDecode {
                     mDecodeInputBuffers = mMediaDecode.getInputBuffers();
                     mDecodeOutputBuffers = mMediaDecode.getOutputBuffers();
                     mDecodeBufferInfo = new MediaCodec.BufferInfo();
-                    JLogEx.d("IN=%d,OUT=%d", mDecodeInputBuffers.length, mDecodeOutputBuffers.length);
+                    if(mDecodeTime > 0){//这里的seekto是微秒，mDecodeTime 存的是毫秒，所有转一下
+                        mMediaExtractor.seekTo(mDecodeTime*1000, MediaExtractor.SEEK_TO_PREVIOUS_SYNC);
+                        mMediaExtractor.advance();
+                    }
+                    setDecodeState(DECODE_STATE_INIT);
+                    JLogEx.d("IN=%d,OUT=%d", mDecodeInputBuffers.length,
+                            mDecodeOutputBuffers.length);
                     bRet = true;
                 }
             }else{
@@ -139,6 +193,7 @@ public class XAudioDecode {
     private void decodeAudioToPCM(){
         JLogEx.i("");
         if(null !=mMediaDecode && null != mMediaExtractor){
+            setDecodeState(DECODE_STATE_DECODEING);//解码中
             for (int i= 0;i< mDecodeInputBuffers.length; i++){
                 int InputBuffIndex = mMediaDecode.dequeueInputBuffer(-1);
                 JLogEx.i("InputBuffIndex = %d", InputBuffIndex);
@@ -149,7 +204,7 @@ public class XAudioDecode {
                     int readSize = mMediaExtractor.readSampleData(inputBuffer, 0);
                     JLogEx.i("readSize=%d", readSize);
                     if (readSize < 0) {//小于0 代表所有数据已读取完成
-                        mDecodeRelust =1;
+                        setDecodeState(DECODE_STATE_COMPLETE);
                         mMediaDecode.queueInputBuffer(InputBuffIndex, 0, 0,
                                 500, MediaCodec.BUFFER_FLAG_END_OF_STREAM);
                         break;
@@ -160,7 +215,7 @@ public class XAudioDecode {
                         mMediaExtractor.advance();//MediaExtractor移动到下一取样处
                     }
                 }else{
-                    mDecodeRelust =1;
+                    setDecodeState(DECODE_STATE_COMPLETE);
                     break;
                 }
             }
@@ -214,7 +269,7 @@ public class XAudioDecode {
                 JLogEx.i("%s", mediaFormat.toString());
             }
         }else{
-            mDecodeRelust = IXAudioDecodeCallBack.ERROR_ID_INIT_FAIL;
+            setDecodeState(IXAudioDecodeCallBack.ERROR_ID_INIT_FAIL);
         }
     }
 
@@ -249,5 +304,20 @@ public class XAudioDecode {
         for (MediaCodecInfo codecInfo : codecInfos) {
            JLogEx.d("codecInfo = %s" , codecInfo.getName());
         }
+    }
+
+    //TODO 获取多媒体文件时长
+    public static int getMediaFileTime(String file_path){
+        MediaPlayer mediaPlayer = new MediaPlayer();
+        int totalTime = 0;
+        try {
+            mediaPlayer.setDataSource(file_path);
+            mediaPlayer.prepare();
+            totalTime = mediaPlayer.getDuration();
+            mediaPlayer.release();
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+        return totalTime;
     }
 }

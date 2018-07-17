@@ -11,7 +11,14 @@
 
         <Button
             android:id="@+id/but_decode"
-            android:text="解码音频"
+            android:text="解码并播放音频"
+            android:onClick="onClick"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content" />
+
+        <Button
+            android:id="@+id/but_stop"
+            android:text="停止解码"
             android:onClick="onClick"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content" />
